@@ -1,5 +1,10 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Project Members
+
+- Khawaja Muhammad Bilal (S2023065086)
+- Dawood Ali Butt (S2023065071)
+
 ## Getting Started
 
 First, run the development server:
