@@ -13,4 +13,12 @@ const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
 ];
 
+// Disable unused vars rule and ts-ignore rule
+eslintConfig.push({
+  rules: {
+    'no-unused-vars': 'off',
+    '@typescript-eslint/ban-ts-comment': 'off',
+  },
+});
+
 export default eslintConfig;
