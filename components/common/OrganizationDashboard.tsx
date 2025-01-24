@@ -9,21 +9,14 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
+import Map from './Map';
+import { api } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import Map from './Map';
-import { Clock, MapPin, AlertTriangle, CheckCircle2, Timer } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface Need {
     _id: string;
@@ -39,63 +32,55 @@ interface Need {
         email: string;
     };
     createdAt: string;
-    distance?: number; // Distance from organization
-    eta?: number; // Estimated time of arrival in minutes
+    distance?: number;
 }
 
-interface Resource {
+interface Organization {
     _id: string;
-    type: string;
-    quantity: number;
-    location: {
+    name: string;
+    address: string;
+    location?: {
         lat: number;
         lng: number;
     };
-    status: 'available' | 'in-transit' | 'depleted';
-    organization: {
-        name: string;
-    };
-    createdAt: string;
 }
 
-export default function OrganizationDashboard({ organizationId }: { organizationId: string }) {
+export default function OrganizationDashboard() {
     const { toast } = useToast();
     const [needs, setNeeds] = useState<Need[]>([]);
-    const [resources, setResources] = useState<Resource[]>([]);
+    const [organization, setOrganization] = useState<Organization | null>(null);
     const [loading, setLoading] = useState(true);
-    const [selectedNeed, setSelectedNeed] = useState<Need | null>(null);
-    const [dispatchDialogOpen, setDispatchDialogOpen] = useState(false);
-    const [estimatedTime, setEstimatedTime] = useState('');
-
     const [filters, setFilters] = useState({
         type: 'all',
         urgency: 'all',
-        status: 'all',
-        distance: 'all', // '10km', '25km', '50km', 'all'
+        status: 'pending', // Default to pending needs
+        distance: 'all',
     });
+    const [selectedNeed, setSelectedNeed] = useState<Need | null>(null);
+    const [showDispatchDialog, setShowDispatchDialog] = useState(false);
+    const [eta, setEta] = useState('');
 
-    useEffect(() => {
-        fetchData();
-    }, [organizationId]);
-
+    // Fetch organization and nearby needs
     async function fetchData() {
         try {
-            const [needsRes, resourcesRes] = await Promise.all([
-                fetch('/api/needs'),
-                fetch(`/api/organizations/${organizationId}/resources`)
-            ]);
+            setLoading(true);
+            // Get user's organization
+            const orgRes = await api.get('/organizations?userOrg=true');
+            const userOrg = orgRes.data[0]; // Get first organization since user can only be in one
+            setOrganization(userOrg);
 
-            const needsData = await needsRes.json();
-            const resourcesData = await resourcesRes.json();
-
-            // Calculate distance for each need from the organization's location
-            const needsWithDistance = needsData.map((need: Need) => ({
+            // Get needs based on organization's location
+            const needsRes = await api.get('/needs');
+            const needsWithDistance = needsRes.data.map((need: Need) => ({
                 ...need,
-                distance: calculateDistance(need.location, resourcesData[0]?.location || { lat: 0, lng: 0 })
+                distance: calculateDistance(
+                    userOrg.location?.lat || 0,
+                    userOrg.location?.lng || 0,
+                    need.location.lat,
+                    need.location.lng
+                )
             }));
-
             setNeeds(needsWithDistance);
-            setResources(resourcesData);
         } catch (error) {
             toast({
                 title: 'Error',
@@ -107,49 +92,21 @@ export default function OrganizationDashboard({ organizationId }: { organization
         }
     }
 
-    function calculateDistance(point1: { lat: number; lng: number }, point2: { lat: number; lng: number }) {
-        // Simple distance calculation (you might want to use a more accurate formula)
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    // Calculate distance between two points using Haversine formula
+    function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
         const R = 6371; // Earth's radius in km
-        const dLat = (point2.lat - point1.lat) * Math.PI / 180;
-        const dLon = (point2.lng - point1.lng) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(point1.lat * Math.PI / 180) * Math.cos(point2.lat * Math.PI / 180) *
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
             Math.sin(dLon / 2) * Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
-    }
-
-    async function handleDispatchResource() {
-        if (!selectedNeed || !estimatedTime) return;
-
-        try {
-            const response = await fetch(`/api/needs/${selectedNeed._id}/dispatch`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    organizationId,
-                    eta: parseInt(estimatedTime)
-                }),
-            });
-
-            if (!response.ok) throw new Error('Failed to dispatch resource');
-
-            toast({
-                title: 'Resource Dispatched',
-                description: `Resources have been dispatched to address the need. ETA: ${estimatedTime} minutes.`,
-            });
-
-            setDispatchDialogOpen(false);
-            setSelectedNeed(null);
-            setEstimatedTime('');
-            fetchData();
-        } catch (error) {
-            toast({
-                title: 'Error',
-                description: 'Failed to dispatch resource.',
-                variant: 'destructive',
-            });
-        }
+        return R * c; // Distance in km
     }
 
     const filteredNeeds = needs.filter((need) => {
@@ -166,33 +123,28 @@ export default function OrganizationDashboard({ organizationId }: { organization
     const needMarkers = filteredNeeds.map((need) => ({
         position: [need.location.lat, need.location.lng] as [number, number],
         popup: (
-            <div className="min-w-[200px] p-4">
-                <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-bold text-lg">{need.type.toUpperCase()}</h3>
-                    <Badge variant={
-                        need.urgency === 'high' ? 'destructive' :
-                            need.urgency === 'medium' ? 'default' :
-                                'secondary'
-                    }>
-                        {need.urgency}
-                    </Badge>
-                </div>
-                <p className="text-sm mb-2">{need.description}</p>
-                <div className="flex items-center text-sm text-gray-500 mb-2">
-                    <MapPin className="w-4 h-4 mr-1" />
-                    {need.distance?.toFixed(1)}km away
-                </div>
-                <div className="flex items-center text-sm text-gray-500 mb-4">
-                    <Clock className="w-4 h-4 mr-1" />
-                    {new Date(need.createdAt).toLocaleDateString()}
+            <div className="min-w-[200px]">
+                <h3 className="font-bold text-red-600">{need.type.toUpperCase()}</h3>
+                <p className="text-sm mt-2">{need.description}</p>
+                <div className="mt-2">
+                    <span className={cn(
+                        "text-xs font-semibold",
+                        need.urgency === 'high' ? 'text-red-600' :
+                            need.urgency === 'medium' ? 'text-yellow-600' :
+                                'text-green-600'
+                    )}>
+                        {need.urgency.toUpperCase()}
+                    </span>
+                    <span className="text-xs text-gray-500 ml-2">
+                        {need.distance?.toFixed(1)} km away
+                    </span>
                 </div>
                 <Button
-                    className="w-full"
+                    className="w-full mt-4"
                     onClick={() => {
                         setSelectedNeed(need);
-                        setDispatchDialogOpen(true);
+                        setShowDispatchDialog(true);
                     }}
-                    disabled={need.status !== 'pending'}
                 >
                     Dispatch Resources
                 </Button>
@@ -201,226 +153,186 @@ export default function OrganizationDashboard({ organizationId }: { organization
         type: 'need' as const,
     }));
 
-    const resourceMarkers = resources.map((resource) => ({
-        position: [resource.location.lat, resource.location.lng] as [number, number],
-        popup: (
-            <div className="min-w-[200px] p-4">
-                <h3 className="font-bold text-lg mb-2">{resource.type.toUpperCase()}</h3>
-                <p className="text-sm mb-2">Quantity: {resource.quantity}</p>
-                <Badge variant={
-                    resource.status === 'available' ? 'secondary' :
-                        resource.status === 'in-transit' ? 'default' :
-                            'destructive'
-                }>
-                    {resource.status}
-                </Badge>
-            </div>
-        ),
-        type: 'resource' as const,
-    }));
+    // Add organization marker
+    const allMarkers = [
+        ...needMarkers,
+        ...(organization?.location ? [{
+            position: [organization.location.lat, organization.location.lng] as [number, number],
+            popup: (
+                <div className="min-w-[200px]">
+                    <h3 className="font-bold text-blue-600">{organization.name}</h3>
+                    <p className="text-sm mt-2">{organization.address}</p>
+                </div>
+            ),
+            type: 'resource' as const,
+        }] : []),
+    ];
+
+    const handleDispatchResources = async () => {
+        if (!selectedNeed || !organization) return;
+
+        try {
+            await api.post('/resources/dispatch', {
+                needId: selectedNeed._id,
+                organizationId: organization._id,
+                eta: parseInt(eta),
+            });
+
+            toast({
+                title: 'Success',
+                description: 'Resources dispatched successfully.',
+            });
+            setShowDispatchDialog(false);
+            fetchData();
+        } catch (error: any) {
+            toast({
+                title: 'Error',
+                description: error.message || 'Failed to dispatch resources.',
+                variant: 'destructive',
+            });
+        }
+    };
 
     return (
-        <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="p-4">
-                    <h3 className="font-semibold mb-2">Type</h3>
-                    <Select
-                        value={filters.type}
-                        onValueChange={(value) => setFilters({ ...filters, type: value })}
-                    >
-                        <SelectTrigger>
-                            <SelectValue placeholder="Filter by type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Types</SelectItem>
-                            <SelectItem value="food">Food</SelectItem>
-                            <SelectItem value="shelter">Shelter</SelectItem>
-                            <SelectItem value="medical">Medical</SelectItem>
-                            <SelectItem value="water">Water</SelectItem>
-                            <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </Card>
+        <div className="fixed inset-0 left-64">
+            <Map
+                className="w-full h-screen"
+                markers={allMarkers}
+                interactive={true}
+                center={organization?.location ? [organization.location.lat, organization.location.lng] : undefined}
+                zoom={12}
+            />
 
-                <Card className="p-4">
-                    <h3 className="font-semibold mb-2">Urgency</h3>
-                    <Select
-                        value={filters.urgency}
-                        onValueChange={(value) => setFilters({ ...filters, urgency: value })}
-                    >
-                        <SelectTrigger>
-                            <SelectValue placeholder="Filter by urgency" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Urgencies</SelectItem>
-                            <SelectItem value="high">High</SelectItem>
-                            <SelectItem value="medium">Medium</SelectItem>
-                            <SelectItem value="low">Low</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </Card>
-
-                <Card className="p-4">
-                    <h3 className="font-semibold mb-2">Status</h3>
-                    <Select
-                        value={filters.status}
-                        onValueChange={(value) => setFilters({ ...filters, status: value })}
-                    >
-                        <SelectTrigger>
-                            <SelectValue placeholder="Filter by status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Statuses</SelectItem>
-                            <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="in-progress">In Progress</SelectItem>
-                            <SelectItem value="resolved">Resolved</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </Card>
-
-                <Card className="p-4">
-                    <h3 className="font-semibold mb-2">Distance</h3>
-                    <Select
-                        value={filters.distance}
-                        onValueChange={(value) => setFilters({ ...filters, distance: value })}
-                    >
-                        <SelectTrigger>
-                            <SelectValue placeholder="Filter by distance" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">Any Distance</SelectItem>
-                            <SelectItem value="10">Within 10km</SelectItem>
-                            <SelectItem value="25">Within 25km</SelectItem>
-                            <SelectItem value="50">Within 50km</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </Card>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_400px] gap-6">
-                <Card className="p-6">
-                    <Map
-                        className="h-[600px]"
-                        markers={[...needMarkers, ...resourceMarkers]}
-                        interactive={true}
-                    />
-                </Card>
-
-                <div className="space-y-6">
-                    <Card className="p-4">
-                        <div className="flex items-center justify-between mb-4">
-                            <div>
-                                <h3 className="font-semibold text-lg">Needs Overview</h3>
-                                <p className="text-sm text-gray-500">
-                                    {filteredNeeds.length} needs in selected area
-                                </p>
-                            </div>
-                            <div className="flex gap-2">
-                                <Badge variant="destructive" className="gap-1">
-                                    <AlertTriangle className="w-4 h-4" />
-                                    {filteredNeeds.filter(n => n.urgency === 'high').length} High
-                                </Badge>
-                                <Badge variant="secondary" className="gap-1">
-                                    <CheckCircle2 className="w-4 h-4" />
-                                    {filteredNeeds.filter(n => n.status === 'resolved').length} Resolved
-                                </Badge>
-                            </div>
+            {/* Right Sidebar */}
+            <div className="absolute top-0 right-0 h-screen w-96 bg-black/70 backdrop-blur-sm border-l border-neutral-800 text-white overflow-hidden flex flex-col">
+                <div className="p-4 border-b border-neutral-800">
+                    <h2 className="text-xl font-bold mb-4">Nearby Needs</h2>
+                    <div className="space-y-4">
+                        <div>
+                            <Select
+                                value={filters.type}
+                                onValueChange={(value) => setFilters({ ...filters, type: value })}
+                            >
+                                <SelectTrigger className="text-white bg-neutral-800/90 border-neutral-700">
+                                    <SelectValue placeholder="Filter by type" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-neutral-800 border-neutral-700 text-white">
+                                    <SelectItem value="all">All Types</SelectItem>
+                                    <SelectItem value="food">Food</SelectItem>
+                                    <SelectItem value="shelter">Shelter</SelectItem>
+                                    <SelectItem value="medical">Medical</SelectItem>
+                                    <SelectItem value="water">Water</SelectItem>
+                                    <SelectItem value="other">Other</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
-                    </Card>
 
-                    <Card className="p-4">
-                        <ScrollArea className="h-[450px]">
-                            <div className="space-y-4">
-                                {filteredNeeds.map((need) => (
-                                    <Card key={need._id} className="p-4">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div>
-                                                <h4 className="font-semibold">{need.type}</h4>
-                                                <p className="text-sm text-gray-600">{need.description}</p>
-                                            </div>
-                                            <Badge variant={
-                                                need.urgency === 'high' ? 'destructive' :
-                                                    need.urgency === 'medium' ? 'default' :
-                                                        'secondary'
-                                            }>
-                                                {need.urgency}
-                                            </Badge>
-                                        </div>
-                                        <div className="flex items-center justify-between text-sm text-gray-500">
-                                            <div className="flex items-center gap-2">
-                                                <MapPin className="w-4 h-4" />
-                                                {need.distance?.toFixed(1)}km away
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <Clock className="w-4 h-4" />
-                                                {new Date(need.createdAt).toLocaleDateString()}
-                                            </div>
-                                        </div>
-                                        {need.status === 'pending' && (
-                                            <Button
-                                                className="w-full mt-3"
-                                                size="sm"
-                                                onClick={() => {
-                                                    setSelectedNeed(need);
-                                                    setDispatchDialogOpen(true);
-                                                }}
-                                            >
-                                                Dispatch Resources
-                                            </Button>
-                                        )}
-                                    </Card>
-                                ))}
-                            </div>
-                        </ScrollArea>
-                    </Card>
+                        <div>
+                            <Select
+                                value={filters.urgency}
+                                onValueChange={(value) => setFilters({ ...filters, urgency: value })}
+                            >
+                                <SelectTrigger className="text-white bg-neutral-800/90 border-neutral-700">
+                                    <SelectValue placeholder="Filter by urgency" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-neutral-800 border-neutral-700 text-white">
+                                    <SelectItem value="all">All Urgencies</SelectItem>
+                                    <SelectItem value="high">High</SelectItem>
+                                    <SelectItem value="medium">Medium</SelectItem>
+                                    <SelectItem value="low">Low</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div>
+                            <Select
+                                value={filters.distance}
+                                onValueChange={(value) => setFilters({ ...filters, distance: value })}
+                            >
+                                <SelectTrigger className="text-white bg-neutral-800/90 border-neutral-700">
+                                    <SelectValue placeholder="Filter by distance" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-neutral-800 border-neutral-700 text-white">
+                                    <SelectItem value="all">Any Distance</SelectItem>
+                                    <SelectItem value="5">Within 5 km</SelectItem>
+                                    <SelectItem value="10">Within 10 km</SelectItem>
+                                    <SelectItem value="20">Within 20 km</SelectItem>
+                                    <SelectItem value="50">Within 50 km</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
                 </div>
+
+                <ScrollArea className="flex-1">
+                    <div className="p-4 space-y-4">
+                        {loading ? (
+                            <p>Loading needs...</p>
+                        ) : filteredNeeds.length === 0 ? (
+                            <p>No needs found nearby.</p>
+                        ) : (
+                            filteredNeeds.map((need) => (
+                                <Card key={need._id} className="p-4 bg-neutral-800/90 border-neutral-700 text-white">
+                                    <div className="flex justify-between items-start">
+                                        <h3 className="font-semibold">{need.type}</h3>
+                                        <Badge variant={
+                                            need.urgency === 'high' ? 'destructive' :
+                                                need.urgency === 'medium' ? 'default' :
+                                                    'secondary'
+                                        }>
+                                            {need.urgency}
+                                        </Badge>
+                                    </div>
+                                    <p className="text-sm mt-2">{need.description}</p>
+                                    <div className="mt-2 flex justify-between items-center">
+                                        <span className="text-xs text-neutral-400">
+                                            {need.distance?.toFixed(1)} km away
+                                        </span>
+                                        <Button
+                                            size="sm"
+                                            onClick={() => {
+                                                setSelectedNeed(need);
+                                                setShowDispatchDialog(true);
+                                            }}
+                                        >
+                                            Dispatch
+                                        </Button>
+                                    </div>
+                                </Card>
+                            ))
+                        )}
+                    </div>
+                </ScrollArea>
             </div>
 
-            <Dialog open={dispatchDialogOpen} onOpenChange={setDispatchDialogOpen}>
-                <DialogContent>
+            {/* Dispatch Dialog */}
+            <Dialog open={showDispatchDialog} onOpenChange={setShowDispatchDialog}>
+                <DialogContent className='bg-neutral-800/90 border-neutral-700 text-white'>
                     <DialogHeader>
                         <DialogTitle>Dispatch Resources</DialogTitle>
                         <DialogDescription>
-                            Enter the estimated time of arrival for the resources to reach the location.
+                            Enter the estimated time of arrival for the resources.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 py-4">
+                    <div className="space-y-4">
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Estimated Time of Arrival (minutes)</label>
-                            <div className="flex items-center gap-2">
-                                <Input
-                                    type="number"
-                                    min="1"
-                                    placeholder="Enter ETA in minutes"
-                                    value={estimatedTime}
-                                    onChange={(e) => setEstimatedTime(e.target.value)}
-                                />
-                                <Timer className="w-5 h-5 text-gray-500" />
-                            </div>
+                            <label className="text-sm font-medium">
+                                Estimated Time of Arrival (minutes)
+                            </label>
+                            <input
+                                type="number"
+                                value={eta}
+                                onChange={(e) => setEta(e.target.value)}
+                                className="w-full px-3 py-2 bg-neutral-700 border border-neutral-600 rounded-md"
+                                min="1"
+                                placeholder="Enter ETA in minutes"
+                            />
                         </div>
-                        <div className="bg-secondary p-4 rounded-lg">
-                            <h4 className="font-semibold mb-2">Need Details</h4>
-                            <p className="text-sm mb-2">{selectedNeed?.description}</p>
-                            <div className="flex items-center gap-4 text-sm text-gray-500">
-                                <div className="flex items-center gap-1">
-                                    <MapPin className="w-4 h-4" />
-                                    {selectedNeed?.distance?.toFixed(1)}km away
-                                </div>
-                                <Badge variant={
-                                    selectedNeed?.urgency === 'high' ? 'destructive' :
-                                        selectedNeed?.urgency === 'medium' ? 'default' :
-                                            'secondary'
-                                }>
-                                    {selectedNeed?.urgency}
-                                </Badge>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="flex justify-end gap-4">
-                        <Button variant="outline" onClick={() => setDispatchDialogOpen(false)}>
-                            Cancel
-                        </Button>
-                        <Button onClick={handleDispatchResource} disabled={!estimatedTime}>
+                        <Button
+                            className="w-full"
+                            onClick={handleDispatchResources}
+                            disabled={!eta}
+                        >
                             Confirm Dispatch
                         </Button>
                     </div>

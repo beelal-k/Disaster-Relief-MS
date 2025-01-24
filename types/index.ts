@@ -1,30 +1,46 @@
-type User = {
+export interface User {
   _id: string;
   email: string;
   role: string;
-};
+}
 
-type Need = {
+export interface Need {
   _id: string;
   type: string;
   description: string;
-  urgency: string;
-  location: { lat: number; lng: number };
+  urgency: 'high' | 'medium' | 'low';
+  location: {
+    lat: number;
+    lng: number;
+  };
+  status: 'pending' | 'in-progress' | 'resolved';
   createdBy: User;
-  createdAt: Date;
-  updatedAt: Date;
-};
+  assignedTo?: Organization;
+  eta?: number;
+  createdAt: string;
+}
 
-type Resource = {
+export interface Resource {
   _id: string;
   type: string;
-  description: string;
   quantity: number;
-  status: string;
-  location: { lat: number; lng: number };
-  createdBy: User;
-  createdAt: Date;
-  updatedAt: Date;
-};
+  location: {
+    lat: number;
+    lng: number;
+  };
+  status: 'available' | 'in-transit' | 'depleted';
+  organization: Organization;
+  createdAt: string;
+}
 
-export type { Need, Resource, User };
+export interface Organization {
+  _id: string;
+  name: string;
+  description: string;
+  contactEmail: string;
+  contactPhone?: string;
+  address?: string;
+  website?: string;
+  admin: User;
+  members: User[];
+}

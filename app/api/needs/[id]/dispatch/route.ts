@@ -6,24 +6,24 @@ import { getToken } from '@/lib/api';
 
 export async function POST(
     req: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     await connectDB();
     const { id } = await getToken(req);
+    const { id: paramId } = await params;
     if (!id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { organizationId, eta } = await req.json();
+    const {  eta } = await req.json();
 
     try {
         // Find the need
-        const need = await Need.findById(params.id);
+        const need = await Need.findById(paramId);
         if (!need) {
             return NextResponse.json({ error: 'Need not found' }, { status: 404 });
         }
 
         // Find available resources of the organization that match the need type
         const availableResource = await Resource.findOne({
-            organization: organizationId,
             type: need.type,
             status: 'available',
         });
@@ -37,7 +37,6 @@ export async function POST(
 
         // Update need status
         need.status = 'in-progress';
-        need.assignedTo = organizationId;
         need.eta = eta;
         await need.save();
 

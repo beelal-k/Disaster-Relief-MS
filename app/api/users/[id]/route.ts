@@ -2,14 +2,16 @@ import { connectDB } from '@/lib/db/mongoose';
 import { User } from '@/lib/db/models/User.model';
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from '@/lib/api';
+// @ts-ignore
 import jwt from 'jsonwebtoken';
 
 export async function PATCH(
     req: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     await connectDB();
     const { id } = await getToken(req);
+    const { id: paramId } = await params;
     if (!id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const currentUser = await User.findById(id);
@@ -23,7 +25,7 @@ export async function PATCH(
     }
 
     try {
-        const user = await User.findById(params.id);
+        const user = await User.findById(paramId);
         if (!user) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }

@@ -117,6 +117,18 @@ function MarkerComponent({
   );
 }
 
+function MapController({ center, zoom }: { center?: [number, number]; zoom?: number }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (center && zoom) {
+      map.setView(center, zoom);
+    }
+  }, [center, zoom, map]);
+
+  return null;
+}
+
 export default function Map({
   className,
   center = [30.3753, 69.3451], // Default to Pakistan's center
@@ -137,10 +149,11 @@ export default function Map({
     <MapContainer
       center={center}
       zoom={zoom}
-      className={cn("h-[400px] w-full rounded-lg", className)}
+      className={cn("h-[400px] w-full", className)}
       scrollWheelZoom={interactive}
       dragging={interactive}
     >
+      <MapController center={center} zoom={zoom} />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

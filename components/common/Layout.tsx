@@ -85,11 +85,11 @@ export default function Layout({ children }: LayoutProps) {
         <div className="min-h-screen bg-[#1a1a1a]">
             <div className="flex">
                 {/* Sidebar */}
-                <div className="fixed left-0 top-0 h-screen w-64 bg-white dark:bg-[#1a1a1a] border-r border-gray-200 dark:border-gray-800">
+                <div className="fixed left-0 top-0 h-screen w-64 bg-neutral-900 text-white border-r border-r-neutral-800">
                     <div className="flex flex-col h-full">
                         <div className="p-6">
-                            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">DRMS</h1>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">Disaster Relief Management</p>
+                            <h1 className="text-2xl font-bold text-white">DRMS</h1>
+                            <p className="text-sm text-neutral-500">Disaster Relief Management</p>
                         </div>
                         <ScrollArea className="flex-1 px-4">
                             <div className="space-y-2">
@@ -98,8 +98,8 @@ export default function Layout({ children }: LayoutProps) {
                                         key={item.href}
                                         variant={pathname === item.href ? 'default' : 'ghost'}
                                         className={cn(
-                                            'w-full justify-start gap-2',
-                                            pathname === item.href && 'bg-gray-100 dark:bg-gray-800'
+                                            'w-full hover:bg-neutral-800 hover:text-white justify-start gap-2',
+                                            pathname === item.href && 'bg-neutral-800'
                                         )}
                                         onClick={() => router.push(item.href)}
                                     >
@@ -112,7 +112,7 @@ export default function Layout({ children }: LayoutProps) {
                         <div className="p-4 border-t border-gray-200 dark:border-gray-800">
                             <Button
                                 variant="ghost"
-                                className="w-full justify-start gap-2 text-red-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/20"
+                                className="w-full justify-start gap-2 hover:text-red-500 text-red-500 hover:bg-red-800/10"
                                 onClick={handleLogout}
                             >
                                 <LogOut className="w-4 h-4" />
