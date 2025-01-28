@@ -4,26 +4,27 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { usePathname, useRouter } from 'next/navigation';
-import { getCurrentUser, logout } from '@/lib/api';
+import { getCurrentUser } from '@/lib/api';
 import { useEffect, useState } from 'react';
 import {
     LayoutDashboard,
-    Building2,
     Users,
     LogOut,
-    Map,
     AlertTriangle,
-    Package
 } from 'lucide-react';
+import { useAuthStore } from '@/stores/authStore';
+import { Toaster } from '../ui/toaster';
 
 interface LayoutProps {
     children: React.ReactNode;
+    className?: string;
 }
 
-export default function Layout({ children }: LayoutProps) {
+export default function Layout({ children, className }: LayoutProps) {
     const pathname = usePathname();
     const router = useRouter();
     const [user, setUser] = useState<any>(null);
+    const { logout } = useAuthStore();
 
     useEffect(() => {
         const currentUser = getCurrentUser();
@@ -45,32 +46,20 @@ export default function Layout({ children }: LayoutProps) {
             show: true
         },
         {
-            title: 'Organizations',
-            href: '/organizations',
-            icon: Building2,
-            show: !isOrganization
-        },
-        {
-            title: 'Organization Dashboard',
-            href: '/organization-dashboard',
-            icon: Map,
-            show: isOrganization
-        },
-        {
-            title: 'Resources',
-            href: '/resources',
-            icon: Package,
-            show: isOrganization
+            title: 'Users',
+            href: '/admin/users',
+            icon: Users,
+            show: isAdmin
         },
         {
             title: 'Needs',
-            href: '/needs',
+            href: '/admin/needs',
             icon: AlertTriangle,
-            show: true
+            show: isAdmin
         },
         {
-            title: 'Users',
-            href: '/admin/users',
+            title: 'Dispatches',
+            href: '/admin/dispatches',
             icon: Users,
             show: isAdmin
         }
@@ -82,7 +71,7 @@ export default function Layout({ children }: LayoutProps) {
     };
 
     return (
-        <div className="min-h-screen bg-[#1a1a1a]">
+        <div className="min-h-screen z-[1000] relative bg-[#1a1a1a]">
             <div className="flex">
                 {/* Sidebar */}
                 <div className="fixed left-0 top-0 h-screen w-64 bg-neutral-900 text-white border-r border-r-neutral-800">
@@ -122,10 +111,11 @@ export default function Layout({ children }: LayoutProps) {
                     </div>
                 </div>
                 {/* Main content */}
-                <div className="flex-1 ml-64">
-                    <main className="p-8">{children}</main>
+                <div className={cn(`flex-1 ml-64`, className)}>
+                    <main className="">{children}</main>
                 </div>
             </div>
+            <Toaster />
         </div>
     );
 } 

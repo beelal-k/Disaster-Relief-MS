@@ -15,12 +15,13 @@ import { api } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
+import { capitalizeWords, cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import NeedForm from '@/components/forms/NeedForm';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search, Loader2 } from 'lucide-react';
+import { getCurrentUser } from '@/lib/api';
 
 interface Need {
     _id: string;
@@ -68,25 +69,40 @@ export default function Dashboard() {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<Array<{
         display_name: string;
-        lat: number;
-        lon: number;
+        latitude: number;
+        longitude: number;
     }>>([]);
     const [showSearchResults, setShowSearchResults] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
 
     async function fetchData() {
         try {
+            const user = getCurrentUser();
+            if (!user) {
+                toast({
+                    title: 'Authentication Error',
+                    description: 'Please log in to view dashboard data.',
+                    variant: 'destructive',
+                });
+                return;
+            }
+
             const [needsRes, resourcesRes] = await Promise.all([
-                api.get('/needs'),
+                api.get(`/needs/u/${user.id}`),
                 api.get('/resources')
             ]);
 
             setNeeds(needsRes.data);
             setResources(resourcesRes.data);
+
+            toast({
+                title: 'Success',
+                description: 'Dashboard data loaded successfully.',
+            });
         } catch (error) {
             toast({
                 title: 'Error',
-                description: 'Failed to fetch dashboard data.',
+                description: 'Failed to fetch dashboard data. Please try again.',
                 variant: 'destructive',
             });
         } finally {
@@ -169,19 +185,24 @@ export default function Dashboard() {
         description: string;
         urgency: 'high' | 'medium' | 'low';
         location: { lat: number; lng: number };
+        requiredQuantity: string;
     }) => {
         try {
-            await api.post('/needs', data);
+            const response = await api.post('/needs', data);
             toast({
                 title: 'Success',
-                description: 'Need created successfully.',
+                description: `${data.type} need created successfully.`,
             });
             setShowNeedForm(false);
+            toast({
+                title: 'Need Created',
+                description: `${data.type} need created successfully.`,
+            });
             fetchData();
         } catch (error: any) {
             toast({
                 title: 'Error',
-                description: error.message || 'Failed to create need.',
+                description: error.message || 'Failed to create need. Please try again.',
                 variant: 'destructive',
             });
         }
@@ -202,16 +223,26 @@ export default function Dashboard() {
                     `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`
                 );
                 const data = await response.json();
-                setSearchResults(data.map((item: any) => ({
+
+                if (data.length === 0) {
+                    toast({
+                        title: 'No Results',
+                        description: 'No locations found for your search.',
+                    });
+                    return;
+                }
+
+                const searchResults = data.map((item: any) => ({
                     display_name: item.display_name,
-                    lat: parseFloat(item.lat),
-                    lon: parseFloat(item.lon)
-                })));
+                    latitude: parseFloat(item.lat),
+                    longitude: parseFloat(item.lon)
+                }));
+                setSearchResults(searchResults);
                 setShowSearchResults(true);
             } catch (error) {
                 toast({
-                    title: 'Error',
-                    description: 'Failed to search location.',
+                    title: 'Search Error',
+                    description: 'Failed to search location. Please try again.',
                     variant: 'destructive',
                 });
             } finally {
@@ -230,10 +261,14 @@ export default function Dashboard() {
         return () => clearTimeout(timer);
     }, [searchQuery, debouncedSearch]);
 
-    function handleLocationSelect(location: { lat: number; lon: number }) {
-        setSelectedLocation({ lat: location.lat, lng: location.lon });
+    function handleLocationSelect(location: { latitude: number; longitude: number; display_name: string }) {
+        setSelectedLocation({ lat: location.latitude, lng: location.longitude });
         setShowSearchResults(false);
         setSearchQuery('');
+        toast({
+            title: 'Location Selected',
+            description: `Selected location: ${location.display_name}`,
+        });
     }
 
     const allMarkers = [
@@ -259,7 +294,7 @@ export default function Dashboard() {
     ];
 
     return (
-        <div className="fixed inset-0 left-64"> {/* Start from sidebar edge */}
+        <div className="fixed inset-0 left-64 "> {/* Start from sidebar edge */}
             {/* Map taking full space */}
             <Map
                 className="w-full h-screen"
@@ -307,24 +342,23 @@ export default function Dashboard() {
             </div>
 
             {/* Right Sidebar */}
-            <div className="absolute top-0 z-[1000] right-0 h-screen w-96 bg-black/70 backdrop-blur-sm border-l border-neutral-800 text-white overflow-hidden flex flex-col">
-                <div className="p-4 border-b border-neutral-800">
+            <div className="absolute top-0 z-[1000] overflow-y-scroll right-0 h-screen w-96 bg-black/70 backdrop-blur-sm border-l border-neutral-800 text-white overflow-hidden flex flex-col">
+                <div className="p-4 border-0">
                     <div className="space-y-4">
                         <div>
                             <Select
                                 value={filters.type}
                                 onValueChange={(value) => setFilters({ ...filters, type: value })}
                             >
-                                <SelectTrigger className="text-white bg-neutral-800/90 border-neutral-700">
+                                <SelectTrigger className="w-full">
                                     <SelectValue placeholder="Filter by type" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-neutral-800 border-neutral-700 text-white">
+                                <SelectContent className="z-[9999] bg-black/70 text-white border-white/10 border backdrop-blur-sm">
                                     <SelectItem value="all">All Types</SelectItem>
                                     <SelectItem value="food">Food</SelectItem>
-                                    <SelectItem value="shelter">Shelter</SelectItem>
-                                    <SelectItem value="medical">Medical</SelectItem>
                                     <SelectItem value="water">Water</SelectItem>
-                                    <SelectItem value="other">Other</SelectItem>
+                                    <SelectItem value="medical">Medical</SelectItem>
+                                    <SelectItem value="shelter">Shelter</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -334,10 +368,10 @@ export default function Dashboard() {
                                 value={filters.urgency}
                                 onValueChange={(value) => setFilters({ ...filters, urgency: value })}
                             >
-                                <SelectTrigger className="text-white bg-neutral-800/90 border-neutral-700">
+                                <SelectTrigger className="w-full mt-2">
                                     <SelectValue placeholder="Filter by urgency" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-neutral-800 border-neutral-700 text-white">
+                                <SelectContent className="z-[9999] bg-black/70 text-white border-white/10 border backdrop-blur-sm">
                                     <SelectItem value="all">All Urgencies</SelectItem>
                                     <SelectItem value="high">High</SelectItem>
                                     <SelectItem value="medium">Medium</SelectItem>
@@ -351,14 +385,15 @@ export default function Dashboard() {
                                 value={filters.status}
                                 onValueChange={(value) => setFilters({ ...filters, status: value })}
                             >
-                                <SelectTrigger className="text-white bg-neutral-800/90 border-neutral-700">
+                                <SelectTrigger className="w-full mt-2">
                                     <SelectValue placeholder="Filter by status" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-neutral-800 border-neutral-700 text-white">
+                                <SelectContent className="z-[9999] bg-black/70 text-white border-white/10 border backdrop-blur-sm">
                                     <SelectItem value="all">All Statuses</SelectItem>
+                                    <SelectItem value="cancelled">Cancelled</SelectItem>
                                     <SelectItem value="pending">Pending</SelectItem>
-                                    <SelectItem value="in-progress">In Progress</SelectItem>
-                                    <SelectItem value="resolved">Resolved</SelectItem>
+                                    <SelectItem value="resources-dispatched">Dispatched</SelectItem>
+                                    <SelectItem value="completed">Completed</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -366,9 +401,8 @@ export default function Dashboard() {
                 </div>
 
                 <Tabs defaultValue="needs" className="flex-1 flex flex-col">
-                    <TabsList className="w-full justify-start px-4 py-2 bg-transparent border-b border-neutral-800">
+                    <TabsList className="w-full justify-start px-4 py-2 bg-transparent border-0">
                         <TabsTrigger value="needs">Needs</TabsTrigger>
-                        <TabsTrigger value="resources">Resources</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="needs" className="flex-1 p-0 m-0">
@@ -382,13 +416,13 @@ export default function Dashboard() {
                                     filteredNeeds.map((need) => (
                                         <Card key={need._id} className="p-4 bg-neutral-800/90 border-neutral-700 text-white">
                                             <div className="flex justify-between items-start">
-                                                <h3 className="font-semibold">{need.type}</h3>
+                                                <h3 className="font-semibold">{capitalizeWords(need.type)}</h3>
                                                 <Badge variant={
                                                     need.urgency === 'high' ? 'destructive' :
                                                         need.urgency === 'medium' ? 'default' :
                                                             'secondary'
                                                 }>
-                                                    {need.urgency}
+                                                    {capitalizeWords(need.urgency)}
                                                 </Badge>
                                             </div>
                                             <p className="text-sm mt-2">{need.description}</p>
@@ -438,15 +472,21 @@ export default function Dashboard() {
             </div>
 
             {/* Need Form Dialog */}
-            <Dialog open={showNeedForm} onOpenChange={setShowNeedForm}>
-                <DialogContent className='bg-neutral-800/90 border-neutral-700 text-white'>
+            <Dialog
+                open={showNeedForm}
+                onOpenChange={setShowNeedForm}
+            >
+                <DialogContent className="z-[9999] fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] bg-black/90 border-neutral-700 border backdrop-blur-sm text-white">
                     <DialogHeader>
                         <DialogTitle>Create New Need</DialogTitle>
                         <DialogDescription>
-                            Fill in the details below to create a new need at the selected location.
+                            Fill in the details to create a new need at the selected location.
                         </DialogDescription>
                     </DialogHeader>
-                    <NeedForm onSubmit={handleCreateNeed} location={selectedLocation} />
+                    <NeedForm
+                        onSubmit={handleCreateNeed}
+                        location={selectedLocation}
+                    />
                 </DialogContent>
             </Dialog>
         </div>

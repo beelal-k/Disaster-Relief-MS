@@ -9,7 +9,7 @@ import jwt from 'jsonwebtoken';
 export async function POST(req: Request) {
   await connectDB();
   
-  const { email, password, role } = await req.json();
+  const { email, password, role, name } = await req.json();
   
   const existingUser = await User.findOne({ email });
   if (existingUser) {
@@ -20,7 +20,8 @@ export async function POST(req: Request) {
   const user = await User.create({ 
     email, 
     password: hashedPassword, 
-    role 
+    role,
+    name
   });
 
   const token = jwt.sign(
@@ -34,7 +35,8 @@ export async function POST(req: Request) {
     user: {
       id: user._id,
       email: user.email,
-      role: user.role
+      role: user.role,
+      name: user.name
     }
   });
 }

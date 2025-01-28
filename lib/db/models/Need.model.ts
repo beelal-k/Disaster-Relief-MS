@@ -1,5 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import { User } from './User.model';
+import { Dispatch } from './Dispatch.model';
 
 export interface INeed extends Document {
   type: 'food' | 'shelter' | 'medical' | 'water' | 'other';
@@ -9,10 +10,11 @@ export interface INeed extends Document {
     lat: number;
     lng: number;
   };
-  status: 'pending' | 'in-progress' | 'resolved';
+  status: 'pending' | 'resources-dispatched' | 'completed';
   createdBy: typeof User;
   requiredQuantity: number;
   fulfilledQuantity: number;
+  dispatches: Schema.Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -52,7 +54,7 @@ const NeedSchema = new Schema({
   status: {
     type: String,
     required: true,
-    enum: ['pending', 'in-progress', 'resolved'],
+    enum: ['pending', 'resources-dispatched', 'completed'],
     default: 'pending',
   },
   createdBy: {
@@ -63,13 +65,18 @@ const NeedSchema = new Schema({
   requiredQuantity: {
     type: Number,
     required: [true, 'Required quantity is required'],
+    default: 1,
     min: [1, 'Required quantity must be at least 1'],
   },
   fulfilledQuantity: {
     type: Number,
     default: 0,
     min: 0,
-  }
+  },
+  dispatches: [{
+    type: Schema.Types.ObjectId,
+    ref: Dispatch.modelName
+  }]
 }, {
   timestamps: true,
 });

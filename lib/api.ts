@@ -43,6 +43,8 @@ export async function signup(email: string, password: string, role: string) {
 
 export async function logout() {
     localStorage.removeItem('token');
+    
+    
 }
 
 // Need functions

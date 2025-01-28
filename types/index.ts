@@ -2,6 +2,9 @@ export interface User {
   _id: string;
   email: string;
   role: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Need {

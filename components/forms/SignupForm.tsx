@@ -13,8 +13,9 @@ import * as z from 'zod';
 const signupSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
+  name: z.string().min(3, 'Name must be at least 3 characters'),
   confirmPassword: z.string().min(6, 'Password must be at least 6 characters'),
-  role: z.enum(['individual', 'worker', 'admin'])
+  role: z.enum(['user', 'admin'])
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ['confirmPassword']
@@ -31,7 +32,8 @@ export default function SignupForm() {
       email: '',
       password: '',
       confirmPassword: '',
-      role: 'individual'
+      name: '',
+      role: 'user'
     }
   });
 
@@ -42,7 +44,7 @@ export default function SignupForm() {
         password: values.password,
         role: values.role
       });
-      
+
       login(response.data.token, response.data.user);
       router.push('/');
     } catch (error: any) {
@@ -54,6 +56,20 @@ export default function SignupForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Name</FormLabel>
+              <FormControl>
+                <Input {...field} type="text" placeholder="Enter your name" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         <FormField
           control={form.control}
           name="email"
@@ -109,8 +125,7 @@ export default function SignupForm() {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="individual">Affected Individual</SelectItem>
-                  <SelectItem value="worker">Relief Worker</SelectItem>
+                  <SelectItem value="user">Affected Individual</SelectItem>
                   <SelectItem value="admin">Administrator</SelectItem>
                 </SelectContent>
               </Select>

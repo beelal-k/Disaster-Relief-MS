@@ -21,9 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import Map from '../common/Map';
-import { createNeed } from '@/lib/api';
-import { Card } from '../ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 
@@ -37,6 +34,7 @@ const formSchema = z.object({
   urgency: z.enum(['high', 'medium', 'low'], {
     required_error: 'Please select urgency level',
   }),
+  requiredQuantity: z.string().min(1, 'Required quantity must be at least 1'),
 });
 
 interface NeedFormProps {
@@ -54,6 +52,7 @@ export default function NeedForm({ onSubmit, location }: NeedFormProps) {
       type: undefined,
       description: '',
       urgency: undefined,
+      requiredQuantity: '1',
     },
   });
 
@@ -99,11 +98,19 @@ export default function NeedForm({ onSubmit, location }: NeedFormProps) {
               <FormLabel>Type of Need</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
-                  <SelectTrigger className="bg-neutral-800 border-neutral-700 text-white">
+                  <SelectTrigger>
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                 </FormControl>
-                <SelectContent className="bg-neutral-800 border-neutral-700 text-white">
+                <SelectContent
+                  ref={(ref) => {
+                    if (!ref) return;
+                    ref.style.zIndex = "9999";
+                  }}
+                  className="z-[9999] bg-black/70 text-white border-white/10 border backdrop-blur-sm"
+                  position="popper"
+                  sideOffset={5}
+                >
                   <SelectItem value="food">Food</SelectItem>
                   <SelectItem value="shelter">Shelter</SelectItem>
                   <SelectItem value="medical">Medical</SelectItem>
@@ -124,11 +131,19 @@ export default function NeedForm({ onSubmit, location }: NeedFormProps) {
               <FormLabel>Urgency Level</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
-                  <SelectTrigger className="bg-neutral-800 border-neutral-700 text-white">
+                  <SelectTrigger>
                     <SelectValue placeholder="Select urgency" />
                   </SelectTrigger>
                 </FormControl>
-                <SelectContent className="bg-neutral-800 border-neutral-700 text-white">
+                <SelectContent
+                  ref={(ref) => {
+                    if (!ref) return;
+                    ref.style.zIndex = "9999";
+                  }}
+                  className="z-[9999] bg-black/70 text-white border-white/10 border backdrop-blur-sm"
+                  position="popper"
+                  sideOffset={5}
+                >
                   <SelectItem value="high">High</SelectItem>
                   <SelectItem value="medium">Medium</SelectItem>
                   <SelectItem value="low">Low</SelectItem>
@@ -138,6 +153,26 @@ export default function NeedForm({ onSubmit, location }: NeedFormProps) {
             </FormItem>
           )}
         />
+
+        <FormField
+          control={form.control}
+          name="requiredQuantity"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Required Quantity</FormLabel>
+              <FormControl>
+                <Input className='bg-neutral-800 border-neutral-700 text-white' type="text" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {form.formState.errors.requiredQuantity && (
+          <p className="text-sm font-medium text-destructive">
+            {form.formState.errors.requiredQuantity.message}
+          </p>
+        )}
 
         <FormField
           control={form.control}

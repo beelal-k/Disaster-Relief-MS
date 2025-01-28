@@ -59,23 +59,12 @@ export default function Home() {
             </Card>
           </TabsContent>
 
-          {/* {user.role === 'individual' && (
-            <TabsContent value="report-need">
-              <Card className="p-6 bg-white/5 border-gray-800">
-                <h2 className="text-2xl font-semibold mb-6 text-white">Report a Need</h2>
-                <NeedForm />
-              </Card>
-            </TabsContent>
-          )} */}
-
-          {user.role === 'organization' && (
-            <TabsContent value="add-resource">
-              <Card className="p-6 bg-white/5 border-gray-800">
-                <h2 className="text-2xl font-semibold mb-6 text-white">Add Resource</h2>
-                <ResourceForm />
-              </Card>
-            </TabsContent>
-          )}
+          <TabsContent value="add-resource">
+            <Card className="p-6 bg-white/5 border-gray-800">
+              <h2 className="text-2xl font-semibold mb-6 text-white">Add Resource</h2>
+              <ResourceForm />
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
     </Layout>
